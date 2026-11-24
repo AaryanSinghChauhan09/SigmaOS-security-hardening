@@ -1,170 +1,88 @@
-use crate::error::SecurityError;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
-pub struct SecurityAudit;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditReport {
+    pub timestamp: String,
+    pub vulnerabilities: Vec<Vulnerability>,
+    pub compliance_issues: Vec<ComplianceIssue>,
+}
 
-impl SecurityAudit {
-    pub fn new() -> Result<Self, SecurityError> {
-        Ok(Self)
-    }
-    
-    pub fn run_audit(&self, audit_type: &str) -> Result<AuditResult, SecurityError> {
-        let mut issues = Vec::new();
-        let mut status = "Pass".to_string();
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Vulnerability {
+    pub severity: String,
+    pub description: String,
+    pub component: String,
+    pub fix_available: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComplianceIssue {
+    pub standard: String,
+    pub issue: String,
+    pub severity: String,
+}
+
+pub struct SecurityAuditor;
+
+impl SecurityAuditor {
+    pub fn audit(&self) -> Result<AuditReport, Box<dyn std::error::Error>> {
+        let vulnerabilities = self.scan_vulnerabilities()?;
+        let compliance_issues = self.check_compliance()?;
         
-        match audit_type {
-            "all" | "system" => {
-                self.audit_system(&mut issues)?;
-            }
-            "network" => {
-                self.audit_network(&mut issues)?;
-            }
-            "filesystem" => {
-                self.audit_filesystem(&mut issues)?;
-            }
-            "authentication" => {
-                self.audit_authentication(&mut issues)?;
-            }
-            "encryption" => {
-                self.audit_encryption(&mut issues)?;
-            }
-            _ => {
-                return Err(SecurityError::AuditFailed(format!("Unknown audit type: {}", audit_type)));
-            }
-        }
-        
-        if !issues.is_empty() {
-            status = "Fail".to_string();
-        }
-        
-        Ok(AuditResult {
-            audit_type: audit_type.to_string(),
-            status,
-            issues,
+        Ok(AuditReport {
             timestamp: chrono::Utc::now().to_rfc3339(),
+            vulnerabilities,
+            compliance_issues,
         })
     }
     
-    fn audit_system(&self, issues: &mut Vec<AuditIssue>) -> Result<(), SecurityError> {
-        // Check SELinux status
-        let selinux_status = Command::new("getenforce").output()?;
-        if !selinux_status.stdout.contains(&b'1') && !selinux_status.stdout.contains(&b'E') {
-            issues.push(AuditIssue {
-                severity: "High".to_string(),
-                description: "SELinux is not enabled".to_string(),
-                recommendation: "Enable SELinux for mandatory access control".to_string(),
-            });
-        }
+    fn scan_vulnerabilities(&self) -> Result<Vec<Vulnerability>, Box<dyn std::error::Error>> {
+        let mut vulnerabilities = Vec::new();
         
-        // Check firewall status
-        let firewall_status = Command::new("systemctl").arg("is-active").arg("firewalld").output()?;
-        if !firewall_status.stdout.contains(&b'active') {
-            issues.push(AuditIssue {
-                severity: "High".to_string(),
-                description: "Firewall is not active".to_string(),
-                recommendation: "Enable firewall for network protection".to_string(),
-            });
-        }
+        let output = Command::new("cve-check")
+            .args(["--machine", "--format", "json"])
+            .output()?;
         
-        // Check audit logging
-        let audit_status = Command::new("systemctl").arg("is-active").arg("auditd").output()?;
-        if !audit_status.stdout.contains(&b'active') {
-            issues.push(AuditIssue {
-                severity: "Medium".to_string(),
-                description: "Audit logging is not active".to_string(),
-                recommendation: "Enable audit logging for security monitoring".to_string(),
-            });
-        }
-        
-        Ok(())
-    }
-    
-    fn audit_network(&self, issues: &mut Vec<AuditIssue>) -> Result<(), SecurityError> {
-        // Check for open ports
-        let ports_output = Command::new("ss").arg("-tlnp").output()?;
-        let ports = String::from_utf8_lossy(&ports_output.stdout);
-        
-        // Check for suspicious ports
-        let suspicious_ports = ["23", "21", "25", "110", "143"];
-        for port in suspicious_ports {
-            if ports.contains(port) {
-                issues.push(AuditIssue {
-                    severity: "Medium".to_string(),
-                    description: format!("Port {} is open", port),
-                    recommendation: format!("Consider closing port {} if not needed", port),
-                });
-            }
-        }
-        
-        Ok(())
-    }
-    
-    fn audit_filesystem(&self, issues: &mut Vec<AuditIssue>) -> Result<(), SecurityError> {
-        // Check file permissions
-        let sensitive_files = ["/etc/shadow", "/etc/passwd", "/etc/sudoers"];
-        
-        for file in sensitive_files {
-            let status = Command::new("stat").arg("-c").arg("%a").arg(file).output()?;
-            if status.status.success() {
-                let perms = String::from_utf8_lossy(&status.stdout).trim().to_string();
-                if perms != "600" && perms != "644" {
-                    issues.push(AuditIssue {
-                        severity: "Medium".to_string(),
-                        description: format!("Incorrect permissions on {}: {}", file, perms),
-                        recommendation: format!("Set correct permissions on {}", file),
-                    });
+        if output.status.success() {
+            let result: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+            
+            if let Some(pvds) = result["items"].as_array() {
+                for pvd in pvds {
+                    if let Some(name) = pvd["name"].as_str() {
+                        vulnerabilities.push(Vulnerability {
+                            severity: "Medium".to_string(),
+                            description: format!("Vulnerability in {}", name),
+                            component: name.to_string(),
+                            fix_available: true,
+                        });
+                    }
                 }
             }
         }
         
-        Ok(())
+        Ok(vulnerabilities)
     }
     
-    fn audit_authentication(&self, issues: &mut Vec<AuditIssue>) -> Result<(), SecurityError> {
-        // Check password policy
-        let pam_output = Command::new("cat").arg("/etc/pam.d/system-auth").output()?;
-        let pam_config = String::from_utf8_lossy(&pam_output.stdout);
+    fn check_compliance(&self) -> Result<Vec<ComplianceIssue>, Box<dyn std::error::Error>> {
+        let mut issues = Vec::new();
         
-        if !pam_config.contains("pam_pwquality.so") {
-            issues.push(AuditIssue {
-                severity: "Medium".to_string(),
-                description: "Password quality module not configured".to_string(),
-                recommendation: "Configure password quality requirements".to_string(),
-            });
+        let output = Command::new("lynis")
+            .arg("audit")
+            .output()?;
+        
+        if output.status.success() {
+            let result = String::from_utf8_lossy(&output.stdout);
+            
+            if result.contains("Warning") {
+                issues.push(ComplianceIssue {
+                    standard: "CIS".to_string(),
+                    issue: "Security configuration issues found".to_string(),
+                    severity: "Medium".to_string(),
+                });
+            }
         }
         
-        Ok(())
+        Ok(issues)
     }
-    
-    fn audit_encryption(&self, issues: &mut Vec<AuditIssue>) -> Result<(), SecurityError> {
-        // Check disk encryption
-        let cryptsetup_output = Command::new("lsblk").arg("-o").arg("NAME,TYPE,FSTYPE").output()?;
-        let block_devices = String::from_utf8_lossy(&cryptsetup_output.stdout);
-        
-        if !block_devices.contains("crypt") {
-            issues.push(AuditIssue {
-                severity: "Low".to_string(),
-                description: "Disk encryption not detected".to_string(),
-                recommendation: "Consider enabling disk encryption for sensitive data".to_string(),
-            });
-        }
-        
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuditResult {
-    pub audit_type: String,
-    pub status: String,
-    pub issues: Vec<AuditIssue>,
-    pub timestamp: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuditIssue {
-    pub severity: String,
-    pub description: String,
-    pub recommendation: String,
 }

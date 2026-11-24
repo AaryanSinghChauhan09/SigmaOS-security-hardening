@@ -1,11 +1,11 @@
 #![forbid(unsafe_code)]
 
 pub mod hardening;
-pub mod error;
 pub mod audit;
 pub mod compliance;
+pub mod error;
 
-pub use hardening::SecurityManager;
+pub use hardening::{SecurityHardener, HardeningConfig};
+pub use audit::{SecurityAuditor, AuditReport};
+pub use compliance::{ComplianceChecker, ComplianceStandard};
 pub use error::SecurityError;
-pub use audit::{SecurityAudit, AuditResult, AuditIssue};
-pub use compliance::{ComplianceChecker, ComplianceResult, ComplianceIssue};
