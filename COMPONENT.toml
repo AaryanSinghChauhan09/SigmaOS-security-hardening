@@ -1,0 +1,19 @@
+[component]
+name = "sigmaos-security-hardening"
+version = "0.1.0"
+description = "SigmaOS security hardening system"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/AaryanSinghChauhan09/SigmaOS-security-hardening"
+
+[dependencies]
+sigmaos-config-system = { path = "../SigmaOS-config-system", version = "0.1.0" }
+sigmaos-update-system = { path = "../SigmaOS-update-system", version = "0.1.0" }
+
+[features]
+default = ["selinux", "apparmor", "firewall", "audit"]
+selinux = []
+apparmor = []
+firewall = []
+audit = []
+encryption = []
+compliance = []
