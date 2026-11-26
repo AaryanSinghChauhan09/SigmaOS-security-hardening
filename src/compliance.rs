@@ -52,7 +52,7 @@ impl ComplianceChecker {
             ],
         }
     }
-    
+
     pub fn check_stig(&self) -> ComplianceStandard {
         ComplianceStandard {
             name: "STIG".to_string(),
