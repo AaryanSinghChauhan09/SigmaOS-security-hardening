@@ -336,3 +336,11 @@ rollback_on_failure = true
 ## License
 
 GPL-3.0-or-later
+
+## See Also
+
+Related SigmaOS **Security** repositories:
+
+- [SigmaOS-sec-audit](../SigmaOS-sec-audit/README.md) — SigmaOS security audit framework
+- [SigmaOS-signed](../SigmaOS-signed/README.md) — SigmaOS package & artifact signing
+- [SigmaOS-openpgpkey](../SigmaOS-openpgpkey/README.md) — SigmaOS OpenPGP keyring management
