@@ -15,7 +15,7 @@ pub struct ComplianceRequirement {
     pub evidence: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ComplianceStatus {
     Compliant,
     NonCompliant,
