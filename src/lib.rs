@@ -79,4 +79,34 @@ mod tests {
         assert_eq!(back.vulnerabilities.len(), 1);
         assert_eq!(back.vulnerabilities[0].severity, "High");
     }
+
+    #[test]
+    fn test_hardening_config_all_disabled_is_valid_aaa() {
+        // Arrange
+        let cfg = HardeningConfig {
+            enable_apparmor: false,
+            enable_selinux: false,
+            enable_firewall: false,
+            enable_audit: false,
+            enable_fde: false,
+            enable_secure_boot: false,
+        };
+        // Act: serialize and deserialize
+        let j = serde_json::to_string(&cfg).unwrap();
+        let back: HardeningConfig = serde_json::from_str(&j).unwrap();
+        // Assert
+        assert!(!back.enable_apparmor);
+        assert!(!back.enable_secure_boot);
+    }
+
+    #[test]
+    fn test_cis_all_requirements_unknown_aaa() {
+        // Arrange + Act
+        let cis = ComplianceChecker.check_cis_benchmark();
+        // Assert: no requirement is Passed or Failed without a real check
+        for req in &cis.requirements {
+            assert_eq!(req.status, ComplianceStatus::Unknown,
+                "CIS requirement {} should be Unknown before evaluation", req.id);
+        }
+    }
 }
